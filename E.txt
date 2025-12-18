@@ -1,0 +1,364 @@
+import SwiftUI
+import SwiftData
+
+// Main entry point of the app
+@main
+struct Mock_Test_12345678App: App {
+    var body: some Scene {
+        WindowGroup {
+            // Start with ListView as the main screen
+            ListView()
+        }
+        // Set up SwiftData container for Location model
+        .modelContainer(for: Location.self)
+    }
+}
+
+---------------------------------------------------------------------------------------------------------
+ListView.swift (ContentView.Swift)
+
+import SwiftUI
+import SwiftData
+
+// List Page - displays all locations with filter option
+struct ListView: View {
+    // Access the model context for SwiftData operations
+    @Environment(\.modelContext) private var modelContext
+    
+    // Query all locations from SwiftData
+    @Query private var locations: [Location]
+    
+    // State for showing Insert Page
+    @State private var showInsertPage = false
+    
+    // State for selected category filter
+    @State private var selectedCategory: String = "All"
+    
+    var body: some View {
+        NavigationStack {
+            VStack {
+                // Filter section
+                HStack {
+                    Text("Filter:")
+                    
+                    // Picker to select category
+                    Picker("Category", selection: $selectedCategory) {
+                        Text("All").tag("All")
+                        
+                        // Get unique categories from locations
+                        ForEach(getCategories(), id: \.self) { category in
+                            Text(category).tag(category)
+                        }
+                    }
+                    .pickerStyle(MenuPickerStyle())
+                    
+                    Spacer()
+                }
+                .padding(.horizontal)
+                
+                // List of locations
+                List {
+                    ForEach(filteredLocations()) { location in
+                        // Navigate to Details Page when tapped
+                        NavigationLink(destination: DetailsView(location: location)) {
+                            // Display location name and category
+                            VStack(alignment: .leading) {
+                                Text(location.name)
+                                    .font(.headline)
+                                Text(location.category)
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Places")
+            .toolbar {
+                // Insert button in toolbar
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Insert") {
+                        showInsertPage = true
+                    }
+                }
+            }
+            // Present Insert Page as sheet
+            .sheet(isPresented: $showInsertPage) {
+                InsertView()
+            }
+        }
+    }
+    
+    // Function to get unique categories from all locations
+    func getCategories() -> [String] {
+        let allCategories = locations.map { $0.category }
+        let uniqueCategories = Array(Set(allCategories))
+        return uniqueCategories.sorted()
+    }
+    
+    // Function to filter locations by selected category
+    func filteredLocations() -> [Location] {
+        if selectedCategory == "All" {
+            return locations
+        } else {
+            return locations.filter { $0.category == selectedCategory }
+        }
+    }
+}
+
+// Preview for SwiftUI canvas
+#Preview {
+    ListView()
+        .modelContainer(for: Location.self, inMemory: true)
+}
+
+---------------------------------------------------------------------------------------------------------
+InsertView.Swift
+
+import SwiftUI
+import SwiftData
+
+// Insert Page - form to add new location
+struct InsertView: View {
+    // Access the model context for SwiftData operations
+    @Environment(\.modelContext) private var modelContext
+    
+    // Dismiss the view
+    @Environment(\.dismiss) private var dismiss
+    
+    // State variables for input fields
+    @State private var name: String = ""
+    @State private var category: String = ""
+    @State private var descriptions: String = ""
+    @State private var lat: String = ""
+    @State private var lng: String = ""
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                // Name input field
+                Section {
+                    TextField("Enter name", text: $name)
+                } header: {
+                    Text("Name")
+                }
+                
+                // Category input field
+                Section {
+                    TextField("Enter category", text: $category)
+                } header: {
+                    Text("Category")
+                }
+                
+                // Description input field
+                Section {
+                    TextField("Enter description", text: $descriptions)
+                } header: {
+                    Text("Description")
+                }
+                
+                // Latitude input field
+                Section {
+                    TextField("Enter latitude", text: $lat)
+                        .keyboardType(.decimalPad)
+                } header: {
+                    Text("Latitude")
+                }
+                
+                // Longitude input field
+                Section {
+                    TextField("Enter longitude", text: $lng)
+                        .keyboardType(.decimalPad)
+                } header: {
+                    Text("Longitude")
+                }
+            }
+            .navigationTitle("Add Place")
+            .toolbar {
+                // Cancel button - dismiss without saving
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                // Save button - save data and dismiss
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        saveLocation()
+                    }
+                }
+            }
+        }
+    }
+    
+    // Function to save new location to SwiftData
+    func saveLocation() {
+        // Create new Location object
+        let newLocation = Location(
+            name: name,
+            category: category,
+            descriptions: descriptions,
+            lat: lat,
+            lng: lng
+        )
+        
+        // Insert into model context
+        modelContext.insert(newLocation)
+        
+        // Dismiss the view
+        dismiss()
+    }
+}
+
+// Preview for SwiftUI canvas
+#Preview {
+    InsertView()
+        .modelContainer(for: Location.self, inMemory: true)
+}
+
+---------------------------------------------------------------------------------------------------------
+
+DetailsView.swift
+
+import SwiftUI
+import MapKit
+
+// Details Page - displays location details with map
+struct DetailsView: View {
+    // The location to display
+    var location: Location
+    
+    // Dismiss the view
+    @Environment(\.dismiss) private var dismiss
+    
+    // Camera position for the map
+    @State private var cameraPosition: MapCameraPosition = .automatic
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Place name
+            Text(location.name)
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .padding(.horizontal)
+            
+            // Place description
+            Text(location.descriptions)
+                .font(.body)
+                .padding(.horizontal)
+            
+            // Latitude and Longitude
+            HStack {
+                Text("Lat: \(location.lat)")
+                Spacer()
+                Text("Lng: \(location.lng)")
+            }
+            .font(.subheadline)
+            .foregroundColor(.gray)
+            .padding(.horizontal)
+            
+            // Map with marker
+            Map(position: $cameraPosition) {
+                // Add marker at location coordinates
+                if let coordinate = getCoordinate() {
+                    Marker(location.name, coordinate: coordinate)
+                }
+            }
+            .frame(height: 300)
+            .cornerRadius(12)
+            .padding(.horizontal)
+            
+            Spacer()
+        }
+        .navigationTitle("Details")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // Back button
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Back") {
+                    dismiss()
+                }
+            }
+        }
+        .onAppear {
+            // Set camera to location when view appears
+            setupCamera()
+        }
+    }
+    
+    // Function to convert lat/lng strings to CLLocationCoordinate2D
+    func getCoordinate() -> CLLocationCoordinate2D? {
+        guard let latitude = Double(location.lat),
+              let longitude = Double(location.lng) else {
+            return nil
+        }
+        return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+    
+    // Function to set up the map camera position
+    func setupCamera() {
+        if let coordinate = getCoordinate() {
+            cameraPosition = .region(MKCoordinateRegion(
+                center: coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+            ))
+        }
+    }
+}
+
+// Preview for SwiftUI canvas
+#Preview {
+    NavigationStack {
+        DetailsView(location: Location(
+            name: "Sample Place",
+            category: "Food",
+            descriptions: "A sample description",
+            lat: "22.3193",
+            lng: "114.1694"
+        ))
+    }
+}
+
+---------------------------------------------------------------------------------------------------------
+Location.swift
+
+import Foundation
+import SwiftData
+
+// Location model for storing place data
+// Uses SwiftData for persistence
+@Model
+class Location {
+    // Unique identifier for each location
+    var id: UUID
+    
+    // Name of the place
+    var name: String
+    
+    // Category of the place (e.g., Food, Entertainment)
+    var category: String
+    
+    // Description of the place
+    var descriptions: String
+    
+    // Latitude coordinate as String
+    var lat: String
+    
+    // Longitude coordinate as String
+    var lng: String
+    
+    // Initializer to create a new Location
+    init(id: UUID = UUID(), name: String, category: String, descriptions: String, lat: String, lng: String) {
+        self.id = id
+        self.name = name
+        self.category = category
+        self.descriptions = descriptions
+        self.lat = lat
+        self.lng = lng
+    }
+}
+
+
+
+
