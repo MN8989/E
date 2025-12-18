@@ -1,0 +1,174 @@
+//
+//  ContentView.swift
+//  Mock_Test_250XXXXXX
+//
+//  Created by TMIT - User on 21/11/2025.
+//
+
+import SwiftUI
+import SwiftData  // ← ADD THIS
+
+// WHY: SwiftData is the database system. Without this import, 
+//      you cannot save or load data.
+
+struct ContentView: View {
+    
+    @Environment(\.modelContext) private var modelContext  // ← ADD THIS
+    
+    // WHY: This connects to the database. You need this to save new data.
+    //      Think of it like a "database connection".
+    
+    @Query private var locations: [Location]  // ← ADD THIS
+    
+    // WHY: This automatically loads ALL locations from the database.
+    //      When database changes, the list updates automatically.
+    //      Think of it like "get all data from database".
+    
+    @State private var selectedCategory: String = "All"  // KEEP THIS (no change)
+    
+    // WHY: This remembers which category the user picked in the filter.
+    //      @State means "remember this value and update screen when it changes".
+    
+    @State private var showInsertPage = false  // ← ADD THIS
+    
+    // WHY: This controls if Insert Page is showing or hidden.
+    //      false = hidden, true = showing.
+    
+    // ← DELETE THIS LINE: let categories: [String] = ["All","Food","Shopping"]
+    
+    // WHY DELETE: We don't want hardcoded categories. We want categories 
+    //             from the database. We will create a function instead.
+    
+    var body: some View {
+        
+        NavigationStack {  // ← CHANGE FROM NavigationView TO NavigationStack
+        
+        // WHY: NavigationStack is the newer version. It works better 
+        //      with NavigationLink and sheet. Apple recommends using this.
+        
+            VStack {
+                List {
+                    
+                    // ↓↓↓ ADD EVERYTHING BELOW INSIDE THE LIST ↓↓↓
+                    
+                    ForEach(filteredLocations()) { location in
+                    
+                    // WHY: ForEach loops through each location.
+                    //      filteredLocations() gives us only the locations 
+                    //      that match the selected category.
+                    
+                        NavigationLink(destination: DetailsView(location: location)) {
+                        
+                        // WHY: NavigationLink makes the row tappable.
+                        //      When tapped, it goes to DetailsView.
+                        //      We pass the location so DetailsView knows which one to show.
+                        
+                            VStack(alignment: .leading) {
+                                Text(location.name)
+                                    .font(.headline)
+                                Text(location.category)
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            // WHY: This shows the location name (big text) 
+                            //      and category (small gray text) in each row.
+                            
+                        }
+                    }
+                    
+                    // ↑↑↑ END OF ADDITIONS INSIDE LIST ↑↑↑
+                    
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        
+                        showInsertPage = true  // ← ADD THIS LINE
+                        
+                        // WHY: When user taps Add button, set showInsertPage to true.
+                        //      This will open the Insert Page.
+                        
+                    } label: {
+                        Text("Add")
+                    }
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Picker("Category", selection: $selectedCategory) {
+                        
+                        Text("All").tag("All")  // ← ADD THIS LINE
+                        
+                        // WHY: We need "All" option to show all locations.
+                        //      .tag("All") connects this option to the value "All".
+                        
+                        ForEach(getCategories(), id: \.self) { category in  // ← CHANGE THIS LINE
+                            Text(category).tag(category)  // ← CHANGE THIS LINE
+                        }
+                        
+                        // WHY: getCategories() gets unique categories from database.
+                        //      This replaces the old hardcoded categories.
+                        //      .tag(category) connects each option to its value.
+                        
+                    }
+                }
+            }
+            
+            // ↓↓↓ ADD THIS BLOCK ↓↓↓
+            
+            .sheet(isPresented: $showInsertPage) {
+                InsertView()
+            }
+            
+            // WHY: .sheet shows a popup page from bottom.
+            //      When showInsertPage is true, InsertView appears.
+            //      When user saves or cancels, it closes automatically.
+            
+            // ↑↑↑ END OF ADDITION ↑↑↑
+            
+        }
+        // ← DELETE .padding() - not needed
+        
+    }
+    
+    // ↓↓↓ ADD THESE 2 FUNCTIONS BELOW (before the last closing bracket) ↓↓↓
+    
+    // Function to get unique categories from database
+    func getCategories() -> [String] {
+        let allCategories = locations.map { $0.category }
+        let uniqueCategories = Array(Set(allCategories))
+        return uniqueCategories.sorted()
+    }
+    
+    // WHY: This function looks at all locations and collects their categories.
+    //      Set() removes duplicates (if 5 places are "Food", it only shows "Food" once).
+    //      sorted() puts them in alphabetical order.
+    
+    // Function to filter locations by selected category
+    func filteredLocations() -> [Location] {
+        if selectedCategory == "All" {
+            return locations
+        } else {
+            return locations.filter { $0.category == selectedCategory }
+        }
+        .padding()
+    }
+    
+    // WHY: This function decides which locations to show.
+    //      If user picks "All", show everything.
+    //      If user picks "Food", show only locations where category is "Food".
+    
+    // ↑↑↑ END OF FUNCTION ADDITIONS ↑↑↑
+    
+}
+
+#Preview {
+    ContentView()
+        .modelContainer(for: Location.self, inMemory: true)  // ← CHANGE THIS
+        
+    // WHY: Preview needs a fake database to work.
+    //      inMemory: true means "temporary database for preview only".
+}
+
+-------------------------------------------------------------------------------------------------------------
+
